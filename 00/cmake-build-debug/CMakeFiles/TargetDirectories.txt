@@ -1,0 +1,4 @@
+I:/Code/CG/00/cmake-build-debug/CMakeFiles/MyOpenGLProject.dir
+I:/Code/CG/00/cmake-build-debug/CMakeFiles/test.dir
+I:/Code/CG/00/cmake-build-debug/CMakeFiles/edit_cache.dir
+I:/Code/CG/00/cmake-build-debug/CMakeFiles/rebuild_cache.dir
