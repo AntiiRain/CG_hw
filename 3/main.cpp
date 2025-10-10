@@ -158,36 +158,94 @@ int main()
 
   // load OBJ -> interleaved positions (3) + colors (3)
   std::string objPath = BASE_PATH + "data/cube.obj";
-  std::vector<float> vertices;
-  bool load_success = loadOBJ(objPath.c_str(), vertices);
-  if (!load_success) {
-    return -1;
-  }
-  int numVertices = static_cast<int>(vertices.size() / 6);
-  std::cout << "Successfully loaded " << numVertices << " vertices." << std::endl;
-  if (numVertices == 0) {
-    std::cout << "No vertices parsed. Exiting." << std::endl;
-    return -1;
-  }
+//  std::vector<float> vertices;
+  std::vector<float> vertices1;
+  std::vector<float> vertices2;
 
-  // create VBO/VAO
-  unsigned int VBO, VAO;
-  glGenVertexArrays(1, &VAO);
-  glGenBuffers(1, &VBO);
 
-  glBindVertexArray(VAO);
-  glBindBuffer(GL_ARRAY_BUFFER, VBO);
-  glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(float), vertices.data(), GL_STATIC_DRAW);
+  // 加载第一个对象
+  std::string objPath1 = BASE_PATH + "data/cube.obj"; // 确保文件名正确
+  bool success1 = loadOBJ(objPath1.c_str(), vertices1);
+  if (!success1) return -1;
+  int numVertices1 = static_cast<int>(vertices1.size() / 6);
+  std::cout << "Successfully loaded object 1 with " << numVertices1 << " vertices." << std::endl;
 
-  // position attribute
+// 加载第二个对象
+  std::string objPath2 = BASE_PATH + "data/cubetest.obj"; // 确保文件名正确
+  bool success2 = loadOBJ(objPath2.c_str(), vertices2);
+  if (!success2) return -1;
+  int numVertices2 = static_cast<int>(vertices2.size() / 6);
+  std::cout << "Successfully loaded object 2 with " << numVertices2 << " vertices." << std::endl;
+
+
+//  bool load_success = loadOBJ(objPath.c_str(), vertices);
+//  if (!load_success) {
+//    return -1;
+//  }
+//  int numVertices = static_cast<int>(vertices.size() / 6);
+//  std::cout << "Successfully loaded " << numVertices << " vertices." << std::endl;
+//  if (numVertices == 0) {
+//    std::cout << "No vertices parsed. Exiting." << std::endl;
+//    return -1;
+//  }
+
+//  // create VBO/VAO
+//  unsigned int VBO, VAO;
+//  glGenVertexArrays(1, &VAO);
+//  glGenBuffers(1, &VBO);
+//
+//  glBindVertexArray(VAO);
+//  glBindBuffer(GL_ARRAY_BUFFER, VBO);
+//  glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(float), vertices.data(), GL_STATIC_DRAW);
+//
+//  // position attribute
+//  glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
+//  glEnableVertexAttribArray(0);
+//  // color attribute
+//  glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
+//  glEnableVertexAttribArray(1);
+//
+//  glBindBuffer(GL_ARRAY_BUFFER, 0);
+//  glBindVertexArray(0);
+
+
+// (在 main 函数中，加载完数据之后)
+
+// --- 为对象1创建 VAO/VBO ---
+  unsigned int VBO1, VAO1;
+  glGenVertexArrays(1, &VAO1);
+  glGenBuffers(1, &VBO1);
+
+  glBindVertexArray(VAO1);
+  glBindBuffer(GL_ARRAY_BUFFER, VBO1);
+  glBufferData(GL_ARRAY_BUFFER, vertices1.size() * sizeof(float), vertices1.data(), GL_STATIC_DRAW);
+
+// 设置顶点属性指针 (位置和颜色)
   glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
   glEnableVertexAttribArray(0);
-  // color attribute
   glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
   glEnableVertexAttribArray(1);
 
+
+// --- 为对象2创建 VAO/VBO ---
+  unsigned int VBO2, VAO2;
+  glGenVertexArrays(1, &VAO2);
+  glGenBuffers(1, &VBO2);
+
+  glBindVertexArray(VAO2);
+  glBindBuffer(GL_ARRAY_BUFFER, VBO2);
+  glBufferData(GL_ARRAY_BUFFER, vertices2.size() * sizeof(float), vertices2.data(), GL_STATIC_DRAW);
+
+// 设置顶点属性指针 (位置和颜色)
+  glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
+  glEnableVertexAttribArray(0);
+  glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
+  glEnableVertexAttribArray(1);
+
+// 解绑
   glBindBuffer(GL_ARRAY_BUFFER, 0);
   glBindVertexArray(0);
+
 
   // uniform location
   GLint uMVPLoc = glGetUniformLocation(shaderProgram, "uMVP");
@@ -206,16 +264,16 @@ int main()
     glfwGetFramebufferSize(window, &fbw, &fbh);
     float aspect = (fbh > 0) ? (static_cast<float>(fbw) / static_cast<float>(fbh)) : 1.3333f;
 
-    // build MVP
-    glm::mat4 model = glm::mat4(1.0f);
-    // 1. 应用平移
-    model = glm::translate(model, objectPosition);
-    // 2. 应用旋转 (注意顺序)
-    model = glm::rotate(model, glm::radians(objectRotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
-    model = glm::rotate(model, glm::radians(objectRotation.x), glm::vec3(1.0f, 0.0f, 0.0f));
-    model = glm::scale(model, glm::vec3(0.5f));
-
-//    model = glm::rotate(model, static_cast<float>(glfwGetTime()), glm::vec3(0.0f, 1.0f, 0.0f));
+//    // build MVP
+//    glm::mat4 model = glm::mat4(1.0f);
+//    // 1. 应用平移
+//    model = glm::translate(model, objectPosition);
+//    // 2. 应用旋转 (注意顺序)
+//    model = glm::rotate(model, glm::radians(objectRotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
+//    model = glm::rotate(model, glm::radians(objectRotation.x), glm::vec3(1.0f, 0.0f, 0.0f));
+//    model = glm::scale(model, glm::vec3(0.5f));
+//
+////    model = glm::rotate(model, static_cast<float>(glfwGetTime()), glm::vec3(0.0f, 1.0f, 0.0f));
 
     glm::mat4 view = glm::lookAt(glm::vec3(0.0f, 0.0f, 3.0f),
                                  glm::vec3(0.0f, 0.0f, 0.0f),
@@ -223,23 +281,55 @@ int main()
 
     glm::mat4 proj = glm::perspective(glm::radians(45.0f), aspect, 0.1f, 100.0f);
 
-    glm::mat4 mvp = proj * view * model;
+//    glm::mat4 mvp = proj * view * model;
 
-    // draw
+
+    glm::mat4 model1 = glm::mat4(1.0f);
+    model1 = glm::translate(model1, glm::vec3(-1.5f, 0.0f, 0.0f)); // 放置在左侧
+    model1 = glm::rotate(model1, static_cast<float>(glfwGetTime()), glm::vec3(0.0f, 1.0f, 0.0f)); // 简单的旋转
+    model1 = glm::scale(model1, glm::vec3(0.5f));
+
+    glm::mat4 mvp1 = proj * view * model1;
+
     glUseProgram(shaderProgram);
-    glUniformMatrix4fv(uMVPLoc, 1, GL_FALSE, glm::value_ptr(mvp));
+    glUniformMatrix4fv(uMVPLoc, 1, GL_FALSE, glm::value_ptr(mvp1));
 
-    glBindVertexArray(VAO);
-    glDrawArrays(GL_TRIANGLES, 0, numVertices);
+    glBindVertexArray(VAO1); // 绑定对象1的VAO
+    glDrawArrays(GL_TRIANGLES, 0, numVertices1);
+
+
+    // --- 绘制对象2 ---
+    glm::mat4 model2 = glm::mat4(1.0f);
+    model2 = glm::translate(model2, glm::vec3(1.5f, 0.0f, 0.0f)); // 放置在右侧
+    model2 = glm::rotate(model2, static_cast<float>(glfwGetTime()), glm::vec3(1.0f, 0.0f, 0.0f)); // 不同的旋转
+    model2 = glm::scale(model2, glm::vec3(0.5f));
+
+    glm::mat4 mvp2 = proj * view * model2;
+
+    glUniformMatrix4fv(uMVPLoc, 1, GL_FALSE, glm::value_ptr(mvp2));
+
+    glBindVertexArray(VAO2); // 绑定对象2的VAO
+    glDrawArrays(GL_TRIANGLES, 0, numVertices2);
+
+
+
+
+
+//    // draw
+//    glUseProgram(shaderProgram);
+//    glUniformMatrix4fv(uMVPLoc, 1, GL_FALSE, glm::value_ptr(mvp));
+//
+//    glBindVertexArray(VAO);
+//    glDrawArrays(GL_TRIANGLES, 0, numVertices);
 
     glfwSwapBuffers(window);
     glfwPollEvents();
   }
 
   // cleanup
-  glDeleteVertexArrays(1, &VAO);
-  glDeleteBuffers(1, &VBO);
-  glDeleteProgram(shaderProgram);
+//  glDeleteVertexArrays(1, &VAO);
+//  glDeleteBuffers(1, &VBO);
+//  glDeleteProgram(shaderProgram);
 
   glfwTerminate();
   return 0;
