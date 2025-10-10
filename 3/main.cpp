@@ -250,6 +250,9 @@ int main()
   // uniform location
   GLint uMVPLoc = glGetUniformLocation(shaderProgram, "uMVP");
 
+
+  double lastTime = glfwGetTime();
+  int nbFrames = 0;
   // render loop
   while (!glfwWindowShouldClose(window))
   {
@@ -346,6 +349,14 @@ int main()
 
     glfwSwapBuffers(window);
     glfwPollEvents();
+
+    double currentTime = glfwGetTime();
+    nbFrames++;
+    if ( currentTime - lastTime >= 1.0 ){ // 每秒打印一次
+      std::cout << nbFrames << " FPS" << std::endl;
+      nbFrames = 0;
+      lastTime += 1.0;
+    }
   }
 
   // cleanup
