@@ -1,4 +1,16 @@
 {
+  "C:/mingw64/bin/x86_64-w64-mingw32-g++.exe" : 
+  {
+    "hash" : "175ed5fec3efb2e0694d73309fc57f1d823967c5",
+    "size" : 1959424,
+    "timestamp" : 1526156085
+  },
+  "C:/mingw64/bin/x86_64-w64-mingw32-gcc.exe" : 
+  {
+    "hash" : "3c5dd3a13589a57c4e101894d48da7ab238e6470",
+    "size" : 1956352,
+    "timestamp" : 1526156114
+  },
   "G:/software/VisualStudio2022/VC/Tools/MSVC/14.38.33130/bin/Hostx64/x64/cl.exe" : 
   {
     "hash" : "d9a54ca9750c5763d8503cb4ad3d5049ed20d1b9",
