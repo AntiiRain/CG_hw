@@ -281,36 +281,58 @@ int main()
 
     glm::mat4 proj = glm::perspective(glm::radians(45.0f), aspect, 0.1f, 100.0f);
 
+
+    glm::vec3 p0(-1.5f, 0.0f, 0.0f); // 物体1的中心
+    glm::vec3 p1(1.5f, 0.0f, 0.0f);  // 物体2的中心
+
+    //计算旋转轴 (从 p0 指向 p1 的归一化向量)
+    glm::vec3 rotationAxis = glm::normalize(p1 - p0);
+
+    // 获取随时间变化的旋转角度
+    float angle = static_cast<float>(glfwGetTime()) * 2.0f; // 乘以2.0f让它转得快一点
+
+    // 构建共享的旋转矩阵 (Axis-Angle Rotation)
+    // 这就是您在线性代数部分推导的矩阵
+    glm::mat4 sharedRotation = glm::rotate(glm::mat4(1.0f), angle, rotationAxis);
+
+
+
+
+
+
 //    glm::mat4 mvp = proj * view * model;
 
 
-    glm::mat4 model1 = glm::mat4(1.0f);
-    model1 = glm::translate(model1, glm::vec3(-1.5f, 0.0f, 0.0f)); // 放置在左侧
-    model1 = glm::rotate(model1, static_cast<float>(glfwGetTime()), glm::vec3(0.0f, 1.0f, 0.0f)); // 简单的旋转
-    model1 = glm::scale(model1, glm::vec3(0.5f));
+
+    // --- 绘制对象1 ---
+    // 先定位（平移和缩放），但不旋转
+    glm::mat4 placement1 = glm::translate(glm::mat4(1.0f), p0);
+    placement1 = glm::scale(placement1, glm::vec3(0.5f));
+    // 应用共享的旋转
+    glm::mat4 model1 = sharedRotation * placement1;
 
     glm::mat4 mvp1 = proj * view * model1;
 
     glUseProgram(shaderProgram);
     glUniformMatrix4fv(uMVPLoc, 1, GL_FALSE, glm::value_ptr(mvp1));
 
-    glBindVertexArray(VAO1); // 绑定对象1的VAO
+    glBindVertexArray(VAO1);
     glDrawArrays(GL_TRIANGLES, 0, numVertices1);
 
 
     // --- 绘制对象2 ---
-    glm::mat4 model2 = glm::mat4(1.0f);
-    model2 = glm::translate(model2, glm::vec3(1.5f, 0.0f, 0.0f)); // 放置在右侧
-    model2 = glm::rotate(model2, static_cast<float>(glfwGetTime()), glm::vec3(1.0f, 0.0f, 0.0f)); // 不同的旋转
-    model2 = glm::scale(model2, glm::vec3(0.5f));
+    // 先定位（平移和缩放），但不旋转
+    glm::mat4 placement2 = glm::translate(glm::mat4(1.0f), p1);
+    placement2 = glm::scale(placement2, glm::vec3(0.5f));
+    // 应用同一个共享的旋转
+    glm::mat4 model2 = sharedRotation * placement2;
 
     glm::mat4 mvp2 = proj * view * model2;
 
     glUniformMatrix4fv(uMVPLoc, 1, GL_FALSE, glm::value_ptr(mvp2));
 
-    glBindVertexArray(VAO2); // 绑定对象2的VAO
+    glBindVertexArray(VAO2);
     glDrawArrays(GL_TRIANGLES, 0, numVertices2);
-
 
 
 
