@@ -1,3 +1,5 @@
 I:/Code/CG/CG_hw/3/cmake-build-debug/CMakeFiles/3.dir
+I:/Code/CG/CG_hw/3/cmake-build-debug/CMakeFiles/cube_ctr.dir
+I:/Code/CG/CG_hw/3/cmake-build-debug/CMakeFiles/cpu_testing.dir
 I:/Code/CG/CG_hw/3/cmake-build-debug/CMakeFiles/edit_cache.dir
 I:/Code/CG/CG_hw/3/cmake-build-debug/CMakeFiles/rebuild_cache.dir

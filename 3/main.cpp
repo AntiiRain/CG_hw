@@ -93,6 +93,7 @@ int main()
   glfwMakeContextCurrent(window);
   glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
 
+  glfwSwapInterval(0);
   // glad: load all OpenGL function pointers
   if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
   {
@@ -165,6 +166,7 @@ int main()
 
   // 加载第一个对象
   std::string objPath1 = BASE_PATH + "data/cube.obj"; // 确保文件名正确
+//  std::string objPath1 = BASE_PATH + "data/f-16.obj"; //for cpu vs gpu testing
   bool success1 = loadOBJ(objPath1.c_str(), vertices1);
   if (!success1) return -1;
   int numVertices1 = static_cast<int>(vertices1.size() / 6);
@@ -172,6 +174,7 @@ int main()
 
 // 加载第二个对象
   std::string objPath2 = BASE_PATH + "data/cubetest.obj"; // 确保文件名正确
+//  std::string objPath2 = BASE_PATH + "data/f-16.obj"; // for cpu vs gpu testing
   bool success2 = loadOBJ(objPath2.c_str(), vertices2);
   if (!success2) return -1;
   int numVertices2 = static_cast<int>(vertices2.size() / 6);

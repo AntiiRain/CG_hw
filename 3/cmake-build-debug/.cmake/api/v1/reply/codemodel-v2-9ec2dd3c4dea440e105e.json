@@ -15,7 +15,9 @@
 					"source" : ".",
 					"targetIndexes" : 
 					[
-						0
+						0,
+						1,
+						2
 					]
 				}
 			],
@@ -30,7 +32,9 @@
 					"name" : "3",
 					"targetIndexes" : 
 					[
-						0
+						0,
+						1,
+						2
 					]
 				}
 			],
@@ -39,8 +43,22 @@
 				{
 					"directoryIndex" : 0,
 					"id" : "3::@6890427a1f51a3e7e1df",
-					"jsonFile" : "target-3-Debug-211a4b066cfb6f09e161.json",
+					"jsonFile" : "target-3-Debug-84ccd57c2735006f09bb.json",
 					"name" : "3",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "cpu_testing::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-cpu_testing-Debug-57f80be242e14796cb7c.json",
+					"name" : "cpu_testing",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "cube_ctr::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-cube_ctr-Debug-b1bcb0a6f0ca145d8f28.json",
+					"name" : "cube_ctr",
 					"projectIndex" : 0
 				}
 			]
