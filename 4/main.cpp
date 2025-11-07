@@ -19,6 +19,12 @@ glm::vec3 objectPosition(0.0f, 0.0f, 0.0f);
 glm::vec3 objectRotation(0.0f, 0.0f, 0.0f); // 存储欧拉角
 float cameraMoveSpeed = 0.05f;
 
+float fov = 45.0f;
+float nearPlane = 0.1f;
+float farPlane = 100.0f;
+
+
+bool showZBuffer = false; // 用于切换 Z-Buffer 视图的布尔值
 
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
@@ -94,7 +100,6 @@ int main()
   glfwMakeContextCurrent(window);
   glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
 
-  glfwSwapInterval(0);
   // glad: load all OpenGL function pointers
   if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
   {
@@ -158,105 +163,100 @@ int main()
   glDeleteShader(vertexShader);
   glDeleteShader(fragmentShader);
 
+  //z-buffer shader
+  // ------------------------------------------------------------------
+  // --- 新增：编译 Z-Buffer 着色器 ---
+  // ------------------------------------------------------------------
+  std::string zvsPath = BASE_PATH + "z_buffer.vs";
+  std::string zfsPath = BASE_PATH + "z_buffer.fs";
+  std::string zVertexShaderCode = readShaderFile(zvsPath);
+  std::string zFragmentShaderCode = readShaderFile(zfsPath);
+  if (zVertexShaderCode.empty() || zFragmentShaderCode.empty()) {
+    return -1;
+  }
+
+  const char* zVertexShaderSource = zVertexShaderCode.c_str();
+  const char* zFragmentShaderSource = zFragmentShaderCode.c_str();
+
+  unsigned int zVertexShader = glCreateShader(GL_VERTEX_SHADER);
+  glShaderSource(zVertexShader, 1, &zVertexShaderSource, NULL);
+  glCompileShader(zVertexShader);
+  // --- 添加检查 ---
+  glGetShaderiv(zVertexShader, GL_COMPILE_STATUS, &success);
+  if (!success) {
+    glGetShaderInfoLog(zVertexShader, 512, NULL, infoLog);
+    std::cout << "ERROR::SHADER::Z_VERTEX::COMPILATION_FAILED\n" << infoLog << std::endl;
+  }
+
+
+  unsigned int zFragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
+  glShaderSource(zFragmentShader, 1, &zFragmentShaderSource, NULL);
+  glCompileShader(zFragmentShader);
+  // --- 添加检查 ---
+  glGetShaderiv(zFragmentShader, GL_COMPILE_STATUS, &success);
+  if (!success) {
+    glGetShaderInfoLog(zFragmentShader, 512, NULL, infoLog);
+    std::cout << "ERROR::SHADER::Z_FRAGMENT::COMPILATION_FAILED\n" << infoLog << std::endl;
+  }
+
+
+  unsigned int zBufferShaderProgram = glCreateProgram();
+  glAttachShader(zBufferShaderProgram, zVertexShader);
+  glAttachShader(zBufferShaderProgram, zFragmentShader);
+  glLinkProgram(zBufferShaderProgram);
+  // --- 添加检查 ---
+  glGetProgramiv(zBufferShaderProgram, GL_LINK_STATUS, &success);
+  if (!success) {
+    glGetProgramInfoLog(zBufferShaderProgram, 512, NULL, infoLog);
+    std::cout << "ERROR::SHADER::Z_PROGRAM::LINKING_FAILED\n" << infoLog << std::endl;
+  }
+
+
+  glDeleteShader(zVertexShader);
+  glDeleteShader(zFragmentShader);
+  // --- Z-Buffer 着色器编译结束 ---
+
+
+
   // load OBJ -> interleaved positions (3) + colors (3)
   std::string objPath = BASE_PATH + "data/cube.obj";
-//  std::vector<float> vertices;
-  std::vector<float> vertices1;
-  std::vector<float> vertices2;
+  std::vector<float> vertices;
+  bool load_success = loadOBJ(objPath.c_str(), vertices);
+  if (!load_success) {
+    return -1;
+  }
+  int numVertices = static_cast<int>(vertices.size() / 6);
+  std::cout << "Successfully loaded " << numVertices << " vertices." << std::endl;
+  if (numVertices == 0) {
+    std::cout << "No vertices parsed. Exiting." << std::endl;
+    return -1;
+  }
 
+  // create VBO/VAO
+  unsigned int VBO, VAO;
+  glGenVertexArrays(1, &VAO);
+  glGenBuffers(1, &VBO);
 
-  // 加载第一个对象
-  std::string objPath1 = BASE_PATH + "data/cube.obj"; // 确保文件名正确
-//  std::string objPath1 = BASE_PATH + "data/f-16.obj"; //for cpu vs gpu testing
-  bool success1 = loadOBJ(objPath1.c_str(), vertices1);
-  if (!success1) return -1;
-  int numVertices1 = static_cast<int>(vertices1.size() / 6);
-  std::cout << "Successfully loaded object 1 with " << numVertices1 << " vertices." << std::endl;
+  glBindVertexArray(VAO);
+  glBindBuffer(GL_ARRAY_BUFFER, VBO);
+  glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(float), vertices.data(), GL_STATIC_DRAW);
 
-// 加载第二个对象
-  std::string objPath2 = BASE_PATH + "data/cubetest.obj"; // 确保文件名正确
-//  std::string objPath2 = BASE_PATH + "data/f-16.obj"; // for cpu vs gpu testing
-  bool success2 = loadOBJ(objPath2.c_str(), vertices2);
-  if (!success2) return -1;
-  int numVertices2 = static_cast<int>(vertices2.size() / 6);
-  std::cout << "Successfully loaded object 2 with " << numVertices2 << " vertices." << std::endl;
-
-
-//  bool load_success = loadOBJ(objPath.c_str(), vertices);
-//  if (!load_success) {
-//    return -1;
-//  }
-//  int numVertices = static_cast<int>(vertices.size() / 6);
-//  std::cout << "Successfully loaded " << numVertices << " vertices." << std::endl;
-//  if (numVertices == 0) {
-//    std::cout << "No vertices parsed. Exiting." << std::endl;
-//    return -1;
-//  }
-
-//  // create VBO/VAO
-//  unsigned int VBO, VAO;
-//  glGenVertexArrays(1, &VAO);
-//  glGenBuffers(1, &VBO);
-//
-//  glBindVertexArray(VAO);
-//  glBindBuffer(GL_ARRAY_BUFFER, VBO);
-//  glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(float), vertices.data(), GL_STATIC_DRAW);
-//
-//  // position attribute
-//  glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
-//  glEnableVertexAttribArray(0);
-//  // color attribute
-//  glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
-//  glEnableVertexAttribArray(1);
-//
-//  glBindBuffer(GL_ARRAY_BUFFER, 0);
-//  glBindVertexArray(0);
-
-
-// (在 main 函数中，加载完数据之后)
-
-// --- 为对象1创建 VAO/VBO ---
-  unsigned int VBO1, VAO1;
-  glGenVertexArrays(1, &VAO1);
-  glGenBuffers(1, &VBO1);
-
-  glBindVertexArray(VAO1);
-  glBindBuffer(GL_ARRAY_BUFFER, VBO1);
-  glBufferData(GL_ARRAY_BUFFER, vertices1.size() * sizeof(float), vertices1.data(), GL_STATIC_DRAW);
-
-// 设置顶点属性指针 (位置和颜色)
+  // position attribute
   glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
   glEnableVertexAttribArray(0);
+  // color attribute
   glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
   glEnableVertexAttribArray(1);
 
-
-// --- 为对象2创建 VAO/VBO ---
-  unsigned int VBO2, VAO2;
-  glGenVertexArrays(1, &VAO2);
-  glGenBuffers(1, &VBO2);
-
-  glBindVertexArray(VAO2);
-  glBindBuffer(GL_ARRAY_BUFFER, VBO2);
-  glBufferData(GL_ARRAY_BUFFER, vertices2.size() * sizeof(float), vertices2.data(), GL_STATIC_DRAW);
-
-// 设置顶点属性指针 (位置和颜色)
-  glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
-  glEnableVertexAttribArray(0);
-  glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
-  glEnableVertexAttribArray(1);
-
-// 解绑
   glBindBuffer(GL_ARRAY_BUFFER, 0);
   glBindVertexArray(0);
-
 
   // uniform location
   GLint uMVPLoc = glGetUniformLocation(shaderProgram, "uMVP");
 
+  // --- 新增：获取 Z-Buffer 着色器的 uniform location ---
+  GLint uMVPLoc_zbuffer = glGetUniformLocation(zBufferShaderProgram, "uMVP");
 
-  double lastTime = glfwGetTime();
-  int nbFrames = 0;
   // render loop
   while (!glfwWindowShouldClose(window))
   {
@@ -271,102 +271,46 @@ int main()
     glfwGetFramebufferSize(window, &fbw, &fbh);
     float aspect = (fbh > 0) ? (static_cast<float>(fbw) / static_cast<float>(fbh)) : 1.3333f;
 
-//    // build MVP
-//    glm::mat4 model = glm::mat4(1.0f);
-//    // 1. 应用平移
-//    model = glm::translate(model, objectPosition);
-//    // 2. 应用旋转 (注意顺序)
-//    model = glm::rotate(model, glm::radians(objectRotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
-//    model = glm::rotate(model, glm::radians(objectRotation.x), glm::vec3(1.0f, 0.0f, 0.0f));
-//    model = glm::scale(model, glm::vec3(0.5f));
-//
-////    model = glm::rotate(model, static_cast<float>(glfwGetTime()), glm::vec3(0.0f, 1.0f, 0.0f));
+    // build MVP
+    glm::mat4 model = glm::mat4(1.0f);
+    // 1. 应用平移
+    model = glm::translate(model, objectPosition);
+    // 2. 应用旋转 (注意顺序)
+    model = glm::rotate(model, glm::radians(objectRotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
+    model = glm::rotate(model, glm::radians(objectRotation.x), glm::vec3(1.0f, 0.0f, 0.0f));
+    model = glm::scale(model, glm::vec3(0.5f));
+
+//    model = glm::rotate(model, static_cast<float>(glfwGetTime()), glm::vec3(0.0f, 1.0f, 0.0f));
 
     glm::mat4 view = glm::lookAt(glm::vec3(0.0f, 0.0f, 3.0f),
                                  glm::vec3(0.0f, 0.0f, 0.0f),
                                  glm::vec3(0.0f, 1.0f, 0.0f));
 
-    glm::mat4 proj = glm::perspective(glm::radians(45.0f), aspect, 0.1f, 100.0f);
+//    glm::mat4 proj = glm::perspective(glm::radians(45.0f), aspect, 0.1f, 100.0f);
+    glm::mat4 proj = glm::perspective(glm::radians(fov), aspect, nearPlane, farPlane);
+
+    glm::mat4 mvp = proj * view * model;
+
+    if (showZBuffer) {
+      glUseProgram(zBufferShaderProgram);
+      glUniformMatrix4fv(uMVPLoc_zbuffer, 1, GL_FALSE, glm::value_ptr(mvp));
+    } else {
+      glUseProgram(shaderProgram);
+      glUniformMatrix4fv(uMVPLoc, 1, GL_FALSE, glm::value_ptr(mvp));
+    }
 
 
-    glm::vec3 p0(-1.5f, 0.0f, 0.0f); // 物体1的中心
-    glm::vec3 p1(1.5f, 0.0f, 0.0f);  // 物体2的中心
-
-    //计算旋转轴 (从 p0 指向 p1 的归一化向量)
-    glm::vec3 rotationAxis = glm::normalize(p1 - p0);
-
-    // 获取随时间变化的旋转角度
-    float angle = static_cast<float>(glfwGetTime()) * 2.0f; // 乘以2.0f让它转得快一点
-
-    // 构建共享的旋转矩阵 (Axis-Angle Rotation)
-    // 这就是您在线性代数部分推导的矩阵
-    glm::mat4 sharedRotation = glm::rotate(glm::mat4(1.0f), angle, rotationAxis);
-
-
-
-
-
-
-//    glm::mat4 mvp = proj * view * model;
-
-
-
-    // --- 绘制对象1 ---
-    // 先定位（平移和缩放），但不旋转
-    glm::mat4 placement1 = glm::translate(glm::mat4(1.0f), p0);
-    placement1 = glm::scale(placement1, glm::vec3(0.5f));
-    // 应用共享的旋转
-    glm::mat4 model1 = sharedRotation * placement1;
-
-    glm::mat4 mvp1 = proj * view * model1;
-
-    glUseProgram(shaderProgram);
-    glUniformMatrix4fv(uMVPLoc, 1, GL_FALSE, glm::value_ptr(mvp1));
-
-    glBindVertexArray(VAO1);
-    glDrawArrays(GL_TRIANGLES, 0, numVertices1);
-
-
-    // --- 绘制对象2 ---
-    // 先定位（平移和缩放），但不旋转
-    glm::mat4 placement2 = glm::translate(glm::mat4(1.0f), p1);
-    placement2 = glm::scale(placement2, glm::vec3(0.5f));
-    // 应用同一个共享的旋转
-    glm::mat4 model2 = sharedRotation * placement2;
-
-    glm::mat4 mvp2 = proj * view * model2;
-
-    glUniformMatrix4fv(uMVPLoc, 1, GL_FALSE, glm::value_ptr(mvp2));
-
-    glBindVertexArray(VAO2);
-    glDrawArrays(GL_TRIANGLES, 0, numVertices2);
-
-
-
-
-//    // draw
-//    glUseProgram(shaderProgram);
-//    glUniformMatrix4fv(uMVPLoc, 1, GL_FALSE, glm::value_ptr(mvp));
-//
-//    glBindVertexArray(VAO);
-//    glDrawArrays(GL_TRIANGLES, 0, numVertices);
+    glBindVertexArray(VAO);
+    glDrawArrays(GL_TRIANGLES, 0, numVertices);
 
     glfwSwapBuffers(window);
     glfwPollEvents();
-
-    double currentTime = glfwGetTime();
-    nbFrames++;
-    if ( currentTime - lastTime >= 1.0 ){ // 每秒打印一次
-      std::cout << nbFrames << " FPS" << std::endl;
-      nbFrames = 0;
-      lastTime += 1.0;
-    }
   }
 
   // cleanup
-//  glDeleteVertexArrays(1, &VAO);
-//  glDeleteBuffers(1, &VBO);
-//  glDeleteProgram(shaderProgram);
+  glDeleteVertexArrays(1, &VAO);
+  glDeleteBuffers(1, &VBO);
+  glDeleteProgram(shaderProgram);
 
   glfwTerminate();
   return 0;
@@ -396,8 +340,59 @@ void processInput(GLFWwindow *window)
     objectRotation.x += 1.0f; // 绕 X 轴旋转
   if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
     objectRotation.x -= 1.0f; // 绕 X 轴旋转
-}
 
+  // --- 新增：透视控制 (Perspective Control) ---
+
+  // FOV (F1: 减小, F2: 增大)
+  if (glfwGetKey(window, GLFW_KEY_F1) == GLFW_PRESS) {
+    fov -= 0.5f;
+    if (fov < 1.0f) fov = 1.0f;
+  }
+  if (glfwGetKey(window, GLFW_KEY_F2) == GLFW_PRESS) {
+    fov += 0.5f;
+    if (fov > 120.0f) fov = 120.0f;
+  }
+
+  // Near Plane (F3: 减小, F4: 增大)
+  if (glfwGetKey(window, GLFW_KEY_F3) == GLFW_PRESS) {
+    nearPlane -= 0.1f;
+    if (nearPlane < 0.1f) nearPlane = 0.1f;
+  }
+  if (glfwGetKey(window, GLFW_KEY_F4) == GLFW_PRESS) {
+    nearPlane += 0.1f;
+    if (nearPlane > farPlane - 1.0f) nearPlane = farPlane - 1.0f; // 确保不
+  }
+
+  // Far Plane (F5: 减小, F6: 增大)
+  if (glfwGetKey(window, GLFW_KEY_F5) == GLFW_PRESS) {
+    farPlane -= 0.5f;
+    if (farPlane < nearPlane + 1.0f) farPlane = nearPlane + 1.0f; // 确保不
+  }
+  if (glfwGetKey(window, GLFW_KEY_F6) == GLFW_PRESS) {
+    farPlane += 0.5f;
+  }
+
+  //在控制台打印变化
+  static float lastFov = fov, lastNear = nearPlane, lastFar = farPlane;
+  if (fov != lastFov || nearPlane != lastNear || farPlane != lastFar) {
+    std::cout << "FOV: " << fov << " | Near: " << nearPlane << " | Far: " << farPlane << std::endl;
+    lastFov = fov;
+    lastNear = nearPlane;
+    lastFar = farPlane;
+  }
+  // 使用一个静态变量来防止按键抖动 (按一次只触发一次)
+  static bool zKeyPressed = false;
+  if (glfwGetKey(window, GLFW_KEY_Z) == GLFW_PRESS) {
+    if (!zKeyPressed) {
+      showZBuffer = !showZBuffer; // 切换布尔值
+      std::cout << (showZBuffer ? "Showing Z-Buffer" : "Showing Normal Color") << std::endl;
+      zKeyPressed = true;
+    }
+  }
+  if (glfwGetKey(window, GLFW_KEY_Z) == GLFW_RELEASE) {
+    zKeyPressed = false;
+  }
+}
 
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height)
