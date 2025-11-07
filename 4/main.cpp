@@ -12,6 +12,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
+#include <algorithm>
 
 //resvise your basepath
 const std::string BASE_PATH = "I:/Code/CG/CG_hw/4/";
@@ -24,7 +25,16 @@ float nearPlane = 0.1f;
 float farPlane = 100.0f;
 
 
+unsigned int gouraudShaderProgram; // Gouraud 着色器
+unsigned int phongShaderProgram;   // Phong 着色器
+
+
+
 bool showZBuffer = false; // 用于切换 Z-Buffer 视图的布尔值
+
+enum ShadingMode { SHADE_NORMAL, SHADE_ZBUFFER, SHADE_GOURAUD, SHADE_PHONG };
+ShadingMode currentShadingMode = SHADE_NORMAL; // 默认是你的原始着色器
+
 
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
@@ -217,6 +227,71 @@ int main()
   // --- Z-Buffer 着色器编译结束 ---
 
 
+  // ------------------------------------------------------------------
+// --- 新增：编译 Gouraud 着色器 ---
+// ------------------------------------------------------------------
+  std::string gouraudVSPath = BASE_PATH + "gouraud.vs";
+  std::string gouraudFSPath = BASE_PATH + "gouraud.fs";
+  std::string gouraudVertexCode = readShaderFile(gouraudVSPath);
+  std::string gouraudFragmentCode = readShaderFile(gouraudFSPath);
+
+
+  const char* gVertexSource = gouraudVertexCode.c_str();
+  const char* gFragmentSource = gouraudFragmentCode.c_str();
+
+  unsigned int gVertexShader = glCreateShader(GL_VERTEX_SHADER);
+  glShaderSource(gVertexShader, 1, &gVertexSource, NULL);
+  glCompileShader(gVertexShader);
+
+
+  unsigned int gFragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
+  glShaderSource(gFragmentShader, 1, &gFragmentSource, NULL);
+  glCompileShader(gFragmentShader);
+
+
+  gouraudShaderProgram = glCreateProgram();
+  glAttachShader(gouraudShaderProgram, gVertexShader);
+  glAttachShader(gouraudShaderProgram, gFragmentShader);
+  glLinkProgram(gouraudShaderProgram);
+
+  glDeleteShader(gVertexShader);
+  glDeleteShader(gFragmentShader);
+
+// ------------------------------------------------------------------
+// --- 新增：编译 Phong 着色器 ---
+// ------------------------------------------------------------------
+  std::string phongVSPath = BASE_PATH + "phong.vs";
+  std::string phongFSPath = BASE_PATH + "phong.fs";
+  std::string phongVertexCode = readShaderFile(phongVSPath);
+  std::string phongFragmentCode = readShaderFile(phongFSPath);
+// (省略了空检查)
+
+  const char* pVertexSource = phongVertexCode.c_str();
+  const char* pFragmentSource = phongFragmentCode.c_str();
+
+  unsigned int pVertexShader = glCreateShader(GL_VERTEX_SHADER);
+  glShaderSource(pVertexShader, 1, &pVertexSource, NULL);
+  glCompileShader(pVertexShader);
+// (你应该添加编译检查!)
+
+  unsigned int pFragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
+  glShaderSource(pFragmentShader, 1, &pFragmentSource, NULL);
+  glCompileShader(pFragmentShader);
+// (你应该添加编译检查!)
+
+  phongShaderProgram = glCreateProgram();
+  glAttachShader(phongShaderProgram, pVertexShader);
+  glAttachShader(phongShaderProgram, pFragmentShader);
+  glLinkProgram(phongShaderProgram);
+// (你应该添加链接检查!)
+  glDeleteShader(pVertexShader);
+  glDeleteShader(pFragmentShader);
+
+
+
+
+
+
 
   // load OBJ -> interleaved positions (3) + colors (3)
   std::string objPath = BASE_PATH + "data/cube.obj";
@@ -392,6 +467,42 @@ void processInput(GLFWwindow *window)
   if (glfwGetKey(window, GLFW_KEY_Z) == GLFW_RELEASE) {
     zKeyPressed = false;
   }
+  
+  // 'N' 键 - 切换回法线 (你的原始着色器)
+  static bool nKeyPressed = false;
+  if (glfwGetKey(window, GLFW_KEY_N) == GLFW_PRESS) {
+    if (!nKeyPressed) {
+      currentShadingMode = SHADE_NORMAL;
+      std::cout << "Shading Mode: Normal (Original)" << std::endl;
+      nKeyPressed = true;
+    }
+  }
+  if (glfwGetKey(window, GLFW_KEY_N) == GLFW_RELEASE) nKeyPressed = false;
+
+  // 'G' 键 - Gouraud 着色
+  static bool gKeyPressed = false;
+  if (glfwGetKey(window, GLFW_KEY_G) == GLFW_PRESS) {
+    if (!gKeyPressed) {
+      currentShadingMode = SHADE_GOURAUD;
+      std::cout << "Shading Mode: Gouraud" << std::endl;
+      gKeyPressed = true;
+    }
+  }
+  if (glfwGetKey(window, GLFW_KEY_G) == GLFW_RELEASE) gKeyPressed = false;
+
+  // 'P' 键 - Phong 着色
+  static bool pKeyPressed = false;
+  if (glfwGetKey(window, GLFW_KEY_P) == GLFW_PRESS) {
+    if (!pKeyPressed) {
+      currentShadingMode = SHADE_PHONG;
+      std::cout << "Shading Mode: Phong" << std::endl;
+      pKeyPressed = true;
+    }
+  }
+  if (glfwGetKey(window, GLFW_KEY_P) == GLFW_RELEASE) pKeyPressed = false;
+
+
+
 }
 
 
@@ -399,72 +510,196 @@ void framebuffer_size_callback(GLFWwindow* window, int width, int height)
 {
   glViewport(0, 0, width, height);
 }
-
 bool loadOBJ(const char* path, std::vector<float>& out_vertices) {
   std::ifstream file(path);
   if (!file.is_open()) {
     std::cerr << "Error: Could not open OBJ file at " << path << std::endl;
     return false;
   }
+
   std::vector<glm::vec3> temp_positions;
-  std::vector<unsigned int> position_indices;
+  std::vector<glm::vec3> temp_normals;
+
+  // 我们将在下一步中使用它，但现在先声明
+  std::vector<glm::vec2> temp_uvs;
+
+  std::vector<unsigned int> position_indices, normal_indices, uv_indices;
+
   std::string line;
 
   while (std::getline(file, line)) {
     std::stringstream ss(line);
     std::string header;
     ss >> header;
+
     if (header == "v") {
       glm::vec3 position;
       ss >> position.x >> position.y >> position.z;
       temp_positions.push_back(position);
+    } else if (header == "vn") {
+      glm::vec3 normal;
+      ss >> normal.x >> normal.y >> normal.z;
+      temp_normals.push_back(normal);
+    } else if (header == "vt") {
+      // (为步骤 4 做准备，现在先读进来)
+      glm::vec2 uv;
+      ss >> uv.x >> uv.y;
+      temp_uvs.push_back(uv);
     } else if (header == "f") {
       std::string vertex_str;
-      std::vector<unsigned int> face_indices_per_line;
+      unsigned int v_idx, vt_idx, vn_idx;
+      char slash;
+
+      std::vector<std::tuple<int, int, int>> face_vertices;
+
       while (ss >> vertex_str) {
-        size_t pos = vertex_str.find('/');
-        if (pos != std::string::npos) {
-          // take the substring before the first '/'
-          face_indices_per_line.push_back(static_cast<unsigned int>(std::stoul(vertex_str.substr(0, pos))));
+        std::stringstream v_ss(vertex_str);
+
+        // 尝试解析 v/vt/vn
+        if (vertex_str.find("//") != std::string::npos) {
+          // 格式: v//vn
+          v_ss >> v_idx >> slash >> slash >> vn_idx;
+          vt_idx = 0; // 没有 vt
+        } else if (std::count(vertex_str.begin(), vertex_str.end(), '/') == 2) {
+          // 格式: v/vt/vn
+          v_ss >> v_idx >> slash >> vt_idx >> slash >> vn_idx;
+        } else if (std::count(vertex_str.begin(), vertex_str.end(), '/') == 1) {
+          // 格式: v/vt
+          v_ss >> v_idx >> slash >> vt_idx;
+          vn_idx = 0; // 没有 vn
         } else {
-          face_indices_per_line.push_back(static_cast<unsigned int>(std::stoul(vertex_str)));
+          // 格式: v
+          v_ss >> v_idx;
+          vt_idx = 0;
+          vn_idx = 0;
         }
+
+        // OBJ 索引从 1 开始，C++ 索引从 0 开始
+        face_vertices.emplace_back(v_idx - 1, vt_idx - 1, vn_idx - 1);
       }
-      if (face_indices_per_line.size() == 4) {
-        // triangulate quad: (v0, v1, v2) and (v0, v2, v3)
-        position_indices.push_back(face_indices_per_line[0] - 1);
-        position_indices.push_back(face_indices_per_line[1] - 1);
-        position_indices.push_back(face_indices_per_line[2] - 1);
-        position_indices.push_back(face_indices_per_line[0] - 1);
-        position_indices.push_back(face_indices_per_line[2] - 1);
-        position_indices.push_back(face_indices_per_line[3] - 1);
-      } else if (face_indices_per_line.size() == 3) {
-        // triangle
-        position_indices.push_back(face_indices_per_line[0] - 1);
-        position_indices.push_back(face_indices_per_line[1] - 1);
-        position_indices.push_back(face_indices_per_line[2] - 1);
+
+      // 将 N 边形三角化 (假设是凸多边形)
+      // 我们只处理 v 和 vn
+      if (face_vertices.size() >= 3) {
+        // v0, v1, v2
+        position_indices.push_back(std::get<0>(face_vertices[0]));
+        position_indices.push_back(std::get<0>(face_vertices[1]));
+        position_indices.push_back(std::get<0>(face_vertices[2]));
+
+        normal_indices.push_back(std::get<2>(face_vertices[0]));
+        normal_indices.push_back(std::get<2>(face_vertices[1]));
+        normal_indices.push_back(std::get<2>(face_vertices[2]));
+
+        // 如果是四边形 (quad)，添加第二个三角形
+        if (face_vertices.size() == 4) {
+          // v0, v2, v3
+          position_indices.push_back(std::get<0>(face_vertices[0]));
+          position_indices.push_back(std::get<0>(face_vertices[2]));
+          position_indices.push_back(std::get<0>(face_vertices[3]));
+
+          normal_indices.push_back(std::get<2>(face_vertices[0]));
+          normal_indices.push_back(std::get<2>(face_vertices[2]));
+          normal_indices.push_back(std::get<2>(face_vertices[3]));
+        }
       }
     }
   }
 
   out_vertices.clear();
+  // 我们的新布局：6 个浮点数 (3 Pos + 3 Norm)
   out_vertices.reserve(position_indices.size() * 6);
 
-  for (unsigned int position_index : position_indices) {
-    if (position_index < temp_positions.size()) {
-      glm::vec3 position = temp_positions[position_index];
-      // position
+  for (size_t i = 0; i < position_indices.size(); ++i) {
+    unsigned int pos_idx = position_indices[i];
+    unsigned int norm_idx = normal_indices[i];
+
+    if (pos_idx < temp_positions.size() && norm_idx < temp_normals.size()) {
+      glm::vec3 position = temp_positions[pos_idx];
+      glm::vec3 normal = temp_normals[norm_idx];
+
+      // 位置 (Position)
       out_vertices.push_back(position.x);
       out_vertices.push_back(position.y);
       out_vertices.push_back(position.z);
-      // simple position-based color [0,1]
-      float r = (position.x + 1.0f) * 0.5f;
-      float g = (position.y + 1.0f) * 0.5f;
-      float b = (position.z + 1.0f) * 0.5f;
-      out_vertices.push_back(r);
-      out_vertices.push_back(g);
-      out_vertices.push_back(b);
+      // 法线 (Normal)
+      out_vertices.push_back(normal.x);
+      out_vertices.push_back(normal.y);
+      out_vertices.push_back(normal.z);
     }
   }
+
+  std::cout << "Loaded " << out_vertices.size() / 6 << " vertices (Pos+Norm)" << std::endl;
   return true;
 }
+
+
+
+//
+//bool loadOBJ(const char* path, std::vector<float>& out_vertices) {
+//  std::ifstream file(path);
+//  if (!file.is_open()) {
+//    std::cerr << "Error: Could not open OBJ file at " << path << std::endl;
+//    return false;
+//  }
+//  std::vector<glm::vec3> temp_positions;
+//  std::vector<unsigned int> position_indices;
+//  std::string line;
+//
+//  while (std::getline(file, line)) {
+//    std::stringstream ss(line);
+//    std::string header;
+//    ss >> header;
+//    if (header == "v") {
+//      glm::vec3 position;
+//      ss >> position.x >> position.y >> position.z;
+//      temp_positions.push_back(position);
+//    } else if (header == "f") {
+//      std::string vertex_str;
+//      std::vector<unsigned int> face_indices_per_line;
+//      while (ss >> vertex_str) {
+//        size_t pos = vertex_str.find('/');
+//        if (pos != std::string::npos) {
+//          // take the substring before the first '/'
+//          face_indices_per_line.push_back(static_cast<unsigned int>(std::stoul(vertex_str.substr(0, pos))));
+//        } else {
+//          face_indices_per_line.push_back(static_cast<unsigned int>(std::stoul(vertex_str)));
+//        }
+//      }
+//      if (face_indices_per_line.size() == 4) {
+//        // triangulate quad: (v0, v1, v2) and (v0, v2, v3)
+//        position_indices.push_back(face_indices_per_line[0] - 1);
+//        position_indices.push_back(face_indices_per_line[1] - 1);
+//        position_indices.push_back(face_indices_per_line[2] - 1);
+//        position_indices.push_back(face_indices_per_line[0] - 1);
+//        position_indices.push_back(face_indices_per_line[2] - 1);
+//        position_indices.push_back(face_indices_per_line[3] - 1);
+//      } else if (face_indices_per_line.size() == 3) {
+//        // triangle
+//        position_indices.push_back(face_indices_per_line[0] - 1);
+//        position_indices.push_back(face_indices_per_line[1] - 1);
+//        position_indices.push_back(face_indices_per_line[2] - 1);
+//      }
+//    }
+//  }
+//
+//  out_vertices.clear();
+//  out_vertices.reserve(position_indices.size() * 6);
+//
+//  for (unsigned int position_index : position_indices) {
+//    if (position_index < temp_positions.size()) {
+//      glm::vec3 position = temp_positions[position_index];
+//      // position
+//      out_vertices.push_back(position.x);
+//      out_vertices.push_back(position.y);
+//      out_vertices.push_back(position.z);
+//      // simple position-based color [0,1]
+//      float r = (position.x + 1.0f) * 0.5f;
+//      float g = (position.y + 1.0f) * 0.5f;
+//      float b = (position.z + 1.0f) * 0.5f;
+//      out_vertices.push_back(r);
+//      out_vertices.push_back(g);
+//      out_vertices.push_back(b);
+//    }
+//  }
+//  return true;
+//}
