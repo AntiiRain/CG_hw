@@ -294,7 +294,7 @@ int main()
 
 
   // load OBJ -> interleaved positions (3) + colors (3)
-  std::string objPath = BASE_PATH + "data/cube.obj";
+  std::string objPath = BASE_PATH + "data/soccerball.obj";
   std::vector<float> vertices;
   bool load_success = loadOBJ(objPath.c_str(), vertices);
   if (!load_success) {
@@ -346,6 +346,16 @@ int main()
     glfwGetFramebufferSize(window, &fbw, &fbh);
     float aspect = (fbh > 0) ? (static_cast<float>(fbw) / static_cast<float>(fbh)) : 1.3333f;
 
+
+    // --- 定义光照和相机 ---
+    glm::vec3 lightPos(0.0f, 3.0f, 4.0f); // 一个简单的光源位置
+    glm::vec3 viewPos(0.0f, 0.0f, 3.0f);   // 相机位置 (同 glm::lookAt 的 'from'
+    glm::vec3 lightColor(1.0f, 1.0f, 1.0f); // 白光
+    glm::vec3 objectColor(1.0f, 0.5f, 0.31f); // 类似珊瑚的颜色
+
+
+
+
     // build MVP
     glm::mat4 model = glm::mat4(1.0f);
     // 1. 应用平移
@@ -366,13 +376,51 @@ int main()
 
     glm::mat4 mvp = proj * view * model;
 
-    if (showZBuffer) {
-      glUseProgram(zBufferShaderProgram);
-      glUniformMatrix4fv(uMVPLoc_zbuffer, 1, GL_FALSE, glm::value_ptr(mvp));
-    } else {
-      glUseProgram(shaderProgram);
-      glUniformMatrix4fv(uMVPLoc, 1, GL_FALSE, glm::value_ptr(mvp));
+//    if (showZBuffer) {
+//      glUseProgram(zBufferShaderProgram);
+//      glUniformMatrix4fv(uMVPLoc_zbuffer, 1, GL_FALSE, glm::value_ptr(mvp));
+//    } else {
+//      glUseProgram(shaderProgram);
+//      glUniformMatrix4fv(uMVPLoc, 1, GL_FALSE, glm::value_ptr(mvp));
+//    }
+    switch (currentShadingMode)
+    {
+      case SHADE_NORMAL:
+        glUseProgram(shaderProgram);
+        glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "uMVP"), 1, GL_FALSE, glm::value_ptr(mvp));
+        break;
+
+      case SHADE_ZBUFFER:
+        glUseProgram(zBufferShaderProgram);
+        glUniformMatrix4fv(glGetUniformLocation(zBufferShaderProgram, "uMVP"), 1, GL_FALSE, glm::value_ptr(mvp));
+        // (如果你做了线性化，这里还要传 near/far)
+        // glUniform1f(glGetUniformLocation(zBufferShaderProgram, "near"), nearPlane);
+        // glUniform1f(glGetUniformLocation(zBufferShaderProgram, "far"), farPlane);
+        break;
+
+      case SHADE_GOURAUD:
+        glUseProgram(gouraudShaderProgram);
+        // 设置所有 Gouraud uniform
+        glUniformMatrix4fv(glGetUniformLocation(gouraudShaderProgram, "uMVP"), 1, GL_FALSE, glm::value_ptr(mvp));
+        glUniformMatrix4fv(glGetUniformLocation(gouraudShaderProgram, "uModel"), 1, GL_FALSE, glm::value_ptr(model));
+        glUniform3fv(glGetUniformLocation(gouraudShaderProgram, "uLightPos"), 1, glm::value_ptr(lightPos));
+        glUniform3fv(glGetUniformLocation(gouraudShaderProgram, "uViewPos"), 1, glm::value_ptr(viewPos));
+        glUniform3fv(glGetUniformLocation(gouraudShaderProgram, "uLightColor"), 1, glm::value_ptr(lightColor));
+        glUniform3fv(glGetUniformLocation(gouraudShaderProgram, "uObjectColor"), 1, glm::value_ptr(objectColor));
+        break;
+
+      case SHADE_PHONG:
+        glUseProgram(phongShaderProgram);
+        // 设置所有 Phong uniform (注意 uMVP 和 uModel 还是需要的)
+        glUniformMatrix4fv(glGetUniformLocation(phongShaderProgram, "uMVP"), 1, GL_FALSE, glm::value_ptr(mvp));
+        glUniformMatrix4fv(glGetUniformLocation(phongShaderProgram, "uModel"), 1, GL_FALSE, glm::value_ptr(model));
+        glUniform3fv(glGetUniformLocation(phongShaderProgram, "uLightPos"), 1, glm::value_ptr(lightPos));
+        glUniform3fv(glGetUniformLocation(phongShaderProgram, "uViewPos"), 1, glm::value_ptr(viewPos));
+        glUniform3fv(glGetUniformLocation(phongShaderProgram, "uLightColor"), 1, glm::value_ptr(lightColor));
+        glUniform3fv(glGetUniformLocation(phongShaderProgram, "uObjectColor"), 1, glm::value_ptr(objectColor));
+        break;
     }
+
 
 
     glBindVertexArray(VAO);
