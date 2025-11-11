@@ -14,6 +14,11 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <algorithm>
 
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
+
+
+
 //resvise your basepath
 const std::string BASE_PATH = "I:/Code/CG/CG_hw/4/";
 glm::vec3 objectPosition(0.0f, 0.0f, 0.0f);
@@ -27,12 +32,12 @@ float farPlane = 100.0f;
 
 unsigned int gouraudShaderProgram; // Gouraud 着色器
 unsigned int phongShaderProgram;   // Phong 着色器
-
+unsigned int phongTextureShaderProgram; // --- 新增 ---
 
 
 bool showZBuffer = false; // 用于切换 Z-Buffer 视图的布尔值
 
-enum ShadingMode { SHADE_NORMAL, SHADE_ZBUFFER, SHADE_GOURAUD, SHADE_PHONG };
+enum ShadingMode { SHADE_NORMAL, SHADE_ZBUFFER, SHADE_GOURAUD, SHADE_PHONG,SHADE_PHONG_TEXTURE};
 ShadingMode currentShadingMode = SHADE_NORMAL; // 默认是你的原始着色器
 
 
@@ -40,6 +45,7 @@ ShadingMode currentShadingMode = SHADE_NORMAL; // 默认是你的原始着色器
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void processInput(GLFWwindow *window);
 bool loadOBJ(const char* path, std::vector<float>& out_vertices);
+unsigned int loadTexture(const char* path);
 
 // settings
 const unsigned int SCR_WIDTH = 800;
@@ -225,8 +231,6 @@ int main()
   glDeleteShader(zVertexShader);
   glDeleteShader(zFragmentShader);
   // --- Z-Buffer 着色器编译结束 ---
-
-
   // ------------------------------------------------------------------
 // --- 新增：编译 Gouraud 着色器 ---
 // ------------------------------------------------------------------
@@ -272,35 +276,78 @@ int main()
   unsigned int pVertexShader = glCreateShader(GL_VERTEX_SHADER);
   glShaderSource(pVertexShader, 1, &pVertexSource, NULL);
   glCompileShader(pVertexShader);
-// (你应该添加编译检查!)
+
 
   unsigned int pFragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
   glShaderSource(pFragmentShader, 1, &pFragmentSource, NULL);
   glCompileShader(pFragmentShader);
-// (你应该添加编译检查!)
+
 
   phongShaderProgram = glCreateProgram();
   glAttachShader(phongShaderProgram, pVertexShader);
   glAttachShader(phongShaderProgram, pFragmentShader);
   glLinkProgram(phongShaderProgram);
-// (你应该添加链接检查!)
+
   glDeleteShader(pVertexShader);
   glDeleteShader(pFragmentShader);
 
 
+//ToDo: adding SHADE_PHONG_TEXTURE compelling
+  std::string ptVSPath = BASE_PATH + "phong_texture.vs";
+  std::string ptFSPath = BASE_PATH + "phong_texture.fs";
+  std::string ptVertexCode = readShaderFile(ptVSPath);
+  std::string ptFragmentCode = readShaderFile(ptFSPath);
+  if (ptVertexCode.empty() || ptFragmentCode.empty()) {
+    return -1;
+  }
 
+  const char* ptVertexSource = ptVertexCode.c_str();
+  const char* ptFragmentSource = ptFragmentCode.c_str();
+
+  unsigned int ptVertexShader = glCreateShader(GL_VERTEX_SHADER);
+  glShaderSource(ptVertexShader, 1, &ptVertexSource, NULL);
+  glCompileShader(ptVertexShader);
+  // 添加编译检查
+  glGetShaderiv(ptVertexShader, GL_COMPILE_STATUS, &success);
+  if (!success) {
+    glGetShaderInfoLog(ptVertexShader, 512, NULL, infoLog);
+    std::cout << "ERROR::SHADER::PHONG_TEXTURE_VERTEX::COMPILATION_FAILED\n" << infoLog << std::endl;
+  }
+
+  unsigned int ptFragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
+  glShaderSource(ptFragmentShader, 1, &ptFragmentSource, NULL);
+  glCompileShader(ptFragmentShader);
+  // 添加编译检查
+  glGetShaderiv(ptFragmentShader, GL_COMPILE_STATUS, &success);
+  if (!success) {
+    glGetShaderInfoLog(ptFragmentShader, 512, NULL, infoLog);
+    std::cout << "ERROR::SHADER::PHONG_TEXTURE_FRAGMENT::COMPILATION_FAILED\n" << infoLog << std::endl;
+  }
+
+  phongTextureShaderProgram = glCreateProgram();
+  glAttachShader(phongTextureShaderProgram, ptVertexShader);
+  glAttachShader(phongTextureShaderProgram, ptFragmentShader);
+  glLinkProgram(phongTextureShaderProgram);
+  // 添加链接检查
+  glGetProgramiv(phongTextureShaderProgram, GL_LINK_STATUS, &success);
+  if (!success) {
+    glGetProgramInfoLog(phongTextureShaderProgram, 512, NULL, infoLog);
+    std::cout << "ERROR::SHADER::PHONG_TEXTURE_PROGRAM::LINKING_FAILED\n" << infoLog << std::endl;
+  }
+  glDeleteShader(ptVertexShader);
+  glDeleteShader(ptFragmentShader);
 
 
 
 
   // load OBJ -> interleaved positions (3) + colors (3)
-  std::string objPath = BASE_PATH + "data/soccerball.obj";
+  std::string objPath = BASE_PATH + "data/spot_triangulated_good.obj";
   std::vector<float> vertices;
   bool load_success = loadOBJ(objPath.c_str(), vertices);
   if (!load_success) {
     return -1;
   }
-  int numVertices = static_cast<int>(vertices.size() / 6);
+  int numVertices = static_cast<int>(vertices.size() / 8);
   std::cout << "Successfully loaded " << numVertices << " vertices." << std::endl;
   if (numVertices == 0) {
     std::cout << "No vertices parsed. Exiting." << std::endl;
@@ -317,11 +364,14 @@ int main()
   glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(float), vertices.data(), GL_STATIC_DRAW);
 
   // position attribute
-  glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
+  glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)0);
   glEnableVertexAttribArray(0);
   // color attribute
-  glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
+  glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(3 * sizeof(float)));
   glEnableVertexAttribArray(1);
+
+  glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(6 * sizeof(float)));
+  glEnableVertexAttribArray(2);
 
   glBindBuffer(GL_ARRAY_BUFFER, 0);
   glBindVertexArray(0);
@@ -331,6 +381,12 @@ int main()
 
   // --- 新增：获取 Z-Buffer 着色器的 uniform location ---
   GLint uMVPLoc_zbuffer = glGetUniformLocation(zBufferShaderProgram, "uMVP");
+
+
+  // --- 新增：加载纹理 ---
+  // 确保你有一个 "uv_test.png" 或 "texture.jpg" 之类的文件
+  std::string texPath = BASE_PATH + "data/spot_texture.png";
+  unsigned int textureID = loadTexture(texPath.c_str());
 
   // render loop
   while (!glfwWindowShouldClose(window))
@@ -419,6 +475,28 @@ int main()
         glUniform3fv(glGetUniformLocation(phongShaderProgram, "uLightColor"), 1, glm::value_ptr(lightColor));
         glUniform3fv(glGetUniformLocation(phongShaderProgram, "uObjectColor"), 1, glm::value_ptr(objectColor));
         break;
+
+      case SHADE_PHONG_TEXTURE:
+        glUseProgram(phongTextureShaderProgram);
+
+        // 1. 设置与 Phong 相同的 Uniforms
+        glUniformMatrix4fv(glGetUniformLocation(phongTextureShaderProgram, "uMVP"), 1, GL_FALSE, glm::value_ptr(mvp));
+        glUniformMatrix4fv(glGetUniformLocation(phongTextureShaderProgram, "uModel"), 1, GL_FALSE, glm::value_ptr(model));
+        glUniform3fv(glGetUniformLocation(phongTextureShaderProgram, "uLightPos"), 1, glm::value_ptr(lightPos));
+        glUniform3fv(glGetUniformLocation(phongTextureShaderProgram, "uViewPos"), 1, glm::value_ptr(viewPos));
+        glUniform3fv(glGetUniformLocation(phongTextureShaderProgram, "uLightColor"), 1, glm::value_ptr(lightColor));
+
+        // 告诉着色器 uTex 采样器使用纹理单元 0
+        glUniform1i(glGetUniformLocation(phongTextureShaderProgram, "uTex"), 0);
+
+        // 激活纹理单元 0
+        glActiveTexture(GL_TEXTURE0);
+
+        // 将我们加载的纹理绑定到纹理单元 0
+        glBindTexture(GL_TEXTURE_2D, textureID);
+
+        break;
+
     }
 
 
@@ -507,8 +585,16 @@ void processInput(GLFWwindow *window)
   static bool zKeyPressed = false;
   if (glfwGetKey(window, GLFW_KEY_Z) == GLFW_PRESS) {
     if (!zKeyPressed) {
-      showZBuffer = !showZBuffer; // 切换布尔值
-      std::cout << (showZBuffer ? "Showing Z-Buffer" : "Showing Normal Color") << std::endl;
+      // --- 修正：修改 currentShadingMode ---
+      if (currentShadingMode != SHADE_ZBUFFER) {
+        currentShadingMode = SHADE_ZBUFFER;
+        std::cout << "Shading Mode: Z-Buffer" << std::endl;
+      } else {
+        // 如果已经在 Z-Buffer 模式，按 Z 键切换回 Phong 模式
+        currentShadingMode = SHADE_PHONG;
+        std::cout << "Shading Mode: Phong" << std::endl;
+      }
+      // --- 修正结束 ---
       zKeyPressed = true;
     }
   }
@@ -549,7 +635,16 @@ void processInput(GLFWwindow *window)
   }
   if (glfwGetKey(window, GLFW_KEY_P) == GLFW_RELEASE) pKeyPressed = false;
 
-
+// 'T' 键 - Phong + Texture 着色
+  static bool tKeyPressed = false;
+  if (glfwGetKey(window, GLFW_KEY_T) == GLFW_PRESS) {
+    if (!tKeyPressed) {
+      currentShadingMode = SHADE_PHONG_TEXTURE;
+      std::cout << "Shading Mode: Phong + Texture" << std::endl;
+      tKeyPressed = true;
+    }
+  }
+  if (glfwGetKey(window, GLFW_KEY_T) == GLFW_RELEASE) tKeyPressed = false;
 
 }
 
@@ -638,6 +733,11 @@ bool loadOBJ(const char* path, std::vector<float>& out_vertices) {
         normal_indices.push_back(std::get<2>(face_vertices[1]));
         normal_indices.push_back(std::get<2>(face_vertices[2]));
 
+        // --- 新增：添加 UV 索引 ---
+        uv_indices.push_back(std::get<1>(face_vertices[0]));
+        uv_indices.push_back(std::get<1>(face_vertices[1]));
+        uv_indices.push_back(std::get<1>(face_vertices[2]));
+
         // 如果是四边形 (quad)，添加第二个三角形
         if (face_vertices.size() == 4) {
           // v0, v2, v3
@@ -648,38 +748,67 @@ bool loadOBJ(const char* path, std::vector<float>& out_vertices) {
           normal_indices.push_back(std::get<2>(face_vertices[0]));
           normal_indices.push_back(std::get<2>(face_vertices[2]));
           normal_indices.push_back(std::get<2>(face_vertices[3]));
+
+          uv_indices.push_back(std::get<1>(face_vertices[0]));
+          uv_indices.push_back(std::get<1>(face_vertices[2]));
+          uv_indices.push_back(std::get<1>(face_vertices[3]));
         }
       }
     }
   }
 
   out_vertices.clear();
-  // 我们的新布局：6 个浮点数 (3 Pos + 3 Norm)
-  out_vertices.reserve(position_indices.size() * 6);
+  // 步长是 8 (Pos, Norm, UV)
+  out_vertices.reserve(position_indices.size() * 8);
 
   for (size_t i = 0; i < position_indices.size(); ++i) {
     unsigned int pos_idx = position_indices[i];
     unsigned int norm_idx = normal_indices[i];
+    unsigned int uv_idx = uv_indices[i];
 
-    if (pos_idx < temp_positions.size() && norm_idx < temp_normals.size()) {
-      glm::vec3 position = temp_positions[pos_idx];
-      glm::vec3 normal = temp_normals[norm_idx];
-
-      // 位置 (Position)
-      out_vertices.push_back(position.x);
-      out_vertices.push_back(position.y);
-      out_vertices.push_back(position.z);
-      // 法线 (Normal)
-      out_vertices.push_back(normal.x);
-      out_vertices.push_back(normal.y);
-      out_vertices.push_back(normal.z);
+    // 1. 位置是必需的
+    if (pos_idx >= temp_positions.size()) {
+      continue; // 如果位置索引无效，跳过这个顶点
     }
+    glm::vec3 position = temp_positions[pos_idx];
+
+    // 2. 检查法线索引是否有效
+    glm::vec3 normal;
+    if (norm_idx < temp_normals.size()) {
+      normal = temp_normals[norm_idx];
+    } else {
+      normal = glm::vec3(0.0f, 1.0f, 0.0f); // 提供一个默认法线（朝上）
+    }
+
+    // 3. 检查 UV 索引是否有效
+    glm::vec2 uv;
+    if (uv_idx < temp_uvs.size()) {
+      uv = temp_uvs[uv_idx];
+    } else {
+      uv = glm::vec2(0.0f, 0.0f); // 提供一个默认 UV 坐标
+    }
+
+    // --- 现在安全地添加所有数据 ---
+
+    // 1. 位置 (Position)
+    out_vertices.push_back(position.x);
+    out_vertices.push_back(position.y);
+    out_vertices.push_back(position.z);
+
+    // 2. 法线 (Normal)
+    out_vertices.push_back(normal.x);
+    out_vertices.push_back(normal.y);
+    out_vertices.push_back(normal.z);
+
+    // 3. UV 坐标
+    out_vertices.push_back(uv.x);
+    out_vertices.push_back(uv.y);
   }
 
-  std::cout << "Loaded " << out_vertices.size() / 6 << " vertices (Pos+Norm)" << std::endl;
+  // --- 同时，修正你的打印信息，使其更准确 ---
+  std::cout << "Loaded " << out_vertices.size() / 8 << " vertices (Pos+Norm+UV)" << std::endl;
   return true;
 }
-
 
 
 //
@@ -751,3 +880,43 @@ bool loadOBJ(const char* path, std::vector<float>& out_vertices) {
 //  }
 //  return true;
 //}
+
+// --- 新增：纹理加载函数 ---
+unsigned int loadTexture(const char* path)
+{
+  unsigned int textureID;
+  glGenTextures(1, &textureID);
+
+  int width, height, nrComponents;
+  stbi_set_flip_vertically_on_load(true); // 看你的UV坐标是否需要翻转
+  unsigned char *data = stbi_load(path, &width, &height, &nrComponents, 0);
+  if (data)
+  {
+    GLenum format;
+    if (nrComponents == 1)
+      format = GL_RED;
+    else if (nrComponents == 3)
+      format = GL_RGB;
+    else if (nrComponents == 4)
+      format = GL_RGBA;
+
+    glBindTexture(GL_TEXTURE_2D, textureID); //
+    glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, data); //
+    glGenerateMipmap(GL_TEXTURE_2D); //
+
+    // 设置纹理环绕和过滤参数
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    stbi_image_free(data);
+    std::cout << "Successfully loaded texture at " << path << std::endl;
+  }
+  else
+  {
+    std::cout << "Texture failed to load at " << path << std::endl;
+    stbi_image_free(data);
+  }
+  return textureID;
+}
