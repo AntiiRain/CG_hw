@@ -10,7 +10,6 @@ uniform mat4 uModel;
 
 void main()
 {
-    // (代码与 phong.vs 完全相同)
     FragPos_World = vec3(uModel * vec4(aPos, 1.0));
     Normal_World = mat3(transpose(inverse(uModel))) * aNormal;
 

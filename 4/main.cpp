@@ -32,12 +32,13 @@ float farPlane = 100.0f;
 
 unsigned int gouraudShaderProgram; // Gouraud 着色器
 unsigned int phongShaderProgram;   // Phong 着色器
-unsigned int phongTextureShaderProgram; // --- 新增 ---
+unsigned int phongTextureShaderProgram; // Texture
+unsigned int flatShaderProgram;
 
 
 bool showZBuffer = false; // 用于切换 Z-Buffer 视图的布尔值
 
-enum ShadingMode { SHADE_NORMAL, SHADE_ZBUFFER, SHADE_GOURAUD, SHADE_PHONG,SHADE_PHONG_TEXTURE};
+enum ShadingMode { SHADE_NORMAL, SHADE_ZBUFFER, SHADE_GOURAUD, SHADE_PHONG,SHADE_PHONG_TEXTURE, SHADE_FLAT};
 ShadingMode currentShadingMode = SHADE_NORMAL; // 默认是你的原始着色器
 
 
@@ -337,6 +338,38 @@ int main()
   glDeleteShader(ptVertexShader);
   glDeleteShader(ptFragmentShader);
 
+// ------------------------------------------------------------------
+// --- 新增：编译 Flat 着色器 ---
+// ------------------------------------------------------------------
+  std::string flatVSPath = BASE_PATH + "flat.vs";
+  std::string flatFSPath = BASE_PATH + "flat.fs";
+  std::string flatVertexCode = readShaderFile(flatVSPath);
+  std::string flatFragmentCode = readShaderFile(flatFSPath);
+  if (flatVertexCode.empty() || flatFragmentCode.empty()) return -1;
+
+  const char* fVertexSource = flatVertexCode.c_str();
+  const char* fFragmentSource = flatFragmentCode.c_str();
+
+  unsigned int fVertexShader = glCreateShader(GL_VERTEX_SHADER);
+  glShaderSource(fVertexShader, 1, &fVertexSource, NULL);
+  glCompileShader(fVertexShader);
+
+
+  unsigned int fFragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
+  glShaderSource(fFragmentShader, 1, &fFragmentSource, NULL);
+  glCompileShader(fFragmentShader);
+
+
+  flatShaderProgram = glCreateProgram();
+  glAttachShader(flatShaderProgram, fVertexShader);
+  glAttachShader(flatShaderProgram, fFragmentShader);
+  glLinkProgram(flatShaderProgram);
+
+
+  glDeleteShader(fVertexShader);
+  glDeleteShader(fFragmentShader);
+
+
 
 
 
@@ -497,6 +530,16 @@ int main()
 
         break;
 
+      case SHADE_FLAT:
+        glUseProgram(flatShaderProgram);
+        // 设置所有与 Phong 相同的 uniform
+        glUniformMatrix4fv(glGetUniformLocation(flatShaderProgram, "uMVP"), 1, GL_FALSE, glm::value_ptr(mvp));
+        glUniformMatrix4fv(glGetUniformLocation(flatShaderProgram, "uModel"), 1, GL_FALSE, glm::value_ptr(model));
+        glUniform3fv(glGetUniformLocation(flatShaderProgram, "uLightPos"), 1, glm::value_ptr(lightPos));
+        glUniform3fv(glGetUniformLocation(flatShaderProgram, "uViewPos"), 1, glm::value_ptr(viewPos));
+        glUniform3fv(glGetUniformLocation(flatShaderProgram, "uLightColor"), 1, glm::value_ptr(lightColor));
+        glUniform3fv(glGetUniformLocation(flatShaderProgram, "uObjectColor"), 1, glm::value_ptr(objectColor));
+        break;
     }
 
 
@@ -646,6 +689,16 @@ void processInput(GLFWwindow *window)
   }
   if (glfwGetKey(window, GLFW_KEY_T) == GLFW_RELEASE) tKeyPressed = false;
 
+  // 'F' 键 - Flat 着色 (Bonus)
+  static bool fKeyPressed = false;
+  if (glfwGetKey(window, GLFW_KEY_F) == GLFW_PRESS) {
+    if (!fKeyPressed) {
+      currentShadingMode = SHADE_FLAT;
+      std::cout << "Shading Mode: Flat (Bonus)" << std::endl;
+      fKeyPressed = true;
+    }
+  }
+  if (glfwGetKey(window, GLFW_KEY_F) == GLFW_RELEASE) fKeyPressed = false;
 }
 
 

@@ -13,12 +13,8 @@ uniform vec3 uObjectColor;
 
 void main()
 {
-    // (代码与 phong.fs 完全相同)
-    // 甚至不需要 normalize(Normal_World)，因为它没有被插值
-    vec3 Normal = normalize(Normal_World);
 
-    // --- 在这里 (片元) 计算 Blinn-Phong 光照 ---
-    // (所有像素计算出的光照都将是相同的)
+    vec3 Normal = normalize(Normal_World);
 
     // 环境光 (Ambient)
     float ambientStrength = 0.1;
